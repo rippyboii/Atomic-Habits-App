@@ -24,8 +24,10 @@ struct RotatingDashboardsContainer: View {
             AnyView(Dashboard1View()),
             AnyView(Dashboard2View()),
             AnyView(Dashboard3View()),
-            AnyView(Dashboard4View())
+            AnyView(Dashboard4View(profile: profile))
         ]
+
+
     }
     
     var body: some View {
