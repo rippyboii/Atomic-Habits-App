@@ -6,6 +6,10 @@
 import SwiftUI
 import Charts
 
+// Dashboard4View.swift
+import SwiftUI
+import Charts
+
 struct Dashboard4View: View {
     // MARK: - Injected Properties
     let profile: Profile
@@ -14,7 +18,6 @@ struct Dashboard4View: View {
 
     // MARK: - State Variables
     @State private var isBalanceBreakdownPresented = false
-    // Changed: selectedTab now has 0: Expenditures, 1: Incomes, 2: All, 3: Savings
     @State private var selectedTab = 0
 
     @State private var balanceBreakdown: [String: Double] = [
@@ -37,8 +40,9 @@ struct Dashboard4View: View {
 
     // Daily limit used for calculating saving status
     @State private var dailyExpenditureLimit: Double = 70.0
-    // Flag to present the sheet to edit the daily limit.
     @State private var isEditingDailyLimit: Bool = false
+    
+    @State private var affectsSaving: Bool = true // Added affectsSaving state
 
     // MARK: - Data Model
 
@@ -75,25 +79,22 @@ struct Dashboard4View: View {
     
     // MARK: - Computed Properties for Savings
 
-    /// Total expenditure for today.
     private var todaysExpenditure: Double {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         return transactions.filter {
-            $0.type == .expenditure && calendar.isDate($0.date, inSameDayAs: today)
+            $0.type == .expenditure && calendar.isDate($0.date, inSameDayAs: today) && (affectsSaving || $0.note != "Affects Savings")
         }
         .reduce(0, { $0 + $1.amount })
     }
     
-    /// Today's saving delta (if positive, you're under budget; if negative, you've overspent).
     private var todaysSaving: Double {
         dailyExpenditureLimit - todaysExpenditure
     }
     
-    /// Past saving records (for days other than today).
     private var pastSavingRecords: [(date: Date, delta: Double)] {
         let calendar = Calendar.current
-        let grouped = Dictionary(grouping: transactions.filter { $0.type == .expenditure },
+        let grouped = Dictionary(grouping: transactions.filter { $0.type == .expenditure && (affectsSaving || $0.note != "Affects Savings") },
                                   by: { calendar.startOfDay(for: $0.date) })
         let records = grouped.map { (date, trans) -> (date: Date, delta: Double) in
             let total = trans.reduce(0, { $0 + $1.amount })
@@ -104,7 +105,6 @@ struct Dashboard4View: View {
                       .sorted { $0.date > $1.date }
     }
     
-    /// Overall saving including today's and all past records.
     private var overallSaving: Double {
         todaysSaving + pastSavingRecords.map { $0.delta }.reduce(0, +)
     }
@@ -120,14 +120,12 @@ struct Dashboard4View: View {
             ScrollView {
                 VStack(spacing: 30) {
                     balanceHeader
-                    // Scrollable tabs
                     transactionTabs
-                    // Show content conditionally based on selected tab.
                     if selectedTab == 3 {
                         savingsTabView
                     } else {
                         transactionList
-                        spendingGraph  // <-- Uses SpendingChartView
+                        spendingGraph
                     }
                 }
                 .padding(.horizontal, 20)
@@ -140,7 +138,6 @@ struct Dashboard4View: View {
             .onChange(of: balanceBreakdown) { oldValue, newValue in
                 saveDashboardData()
             }
-
             
             floatingActionButtons
         }
@@ -150,7 +147,8 @@ struct Dashboard4View: View {
                 transactionAmount: $transactionAmount,
                 transactionMethod: $transactionMethod,
                 balanceBreakdown: $balanceBreakdown,
-                transactions: $transactions
+                transactions: $transactions,
+                affectsSaving: $affectsSaving // <-- Pass the binding here
             )
         }
         .sheet(isPresented: $isBalanceBreakdownPresented) {
@@ -162,7 +160,6 @@ struct Dashboard4View: View {
                 transactions: $transactions
             )
         }
-        // New sheet to edit daily saving limit.
         .sheet(isPresented: $isEditingDailyLimit) {
             EditDailyLimitView(dailyLimit: $dailyExpenditureLimit)
         }
@@ -195,7 +192,6 @@ struct Dashboard4View: View {
         .frame(height: 150)
     }
     
-    /// Scrollable tabs for switching between views.
     private var transactionTabs: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
@@ -219,8 +215,7 @@ struct Dashboard4View: View {
                 .foregroundColor(selectedTab == tag ? .white : .primary)
         }
     }
-    
-    /// For tabs 0-2, shows the transaction list.
+
     private var transactionList: some View {
         VStack(spacing: 15) {
             ForEach(filteredTransactions) { transaction in
@@ -234,11 +229,9 @@ struct Dashboard4View: View {
             }
         }
     }
-    
-    /// Savings Tab view: Overall Saving, Today's Saving, and Past Saving Records.
+
     private var savingsTabView: some View {
         VStack(spacing: 20) {
-            // Overall Saving Card
             VStack(spacing: 10) {
                 Text("Overall Saving")
                     .font(.headline)
@@ -251,7 +244,6 @@ struct Dashboard4View: View {
             .padding()
             .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.2)))
             
-            // Today's Saving Card
             VStack(spacing: 10) {
                 Text("Today's Saving")
                     .font(.headline)
@@ -264,7 +256,6 @@ struct Dashboard4View: View {
             .padding()
             .background(RoundedRectangle(cornerRadius: 12).fill(Color.gray.opacity(0.2)))
             
-            // Past Saving Records with Edit Daily Limit button
             VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("Past Saving Records")
@@ -291,8 +282,7 @@ struct Dashboard4View: View {
         }
         .padding(.top, 10)
     }
-    
-    /// Updated Spending Graph using Swift Charts.
+
     private var spendingGraph: some View {
         VStack(alignment: .leading) {
             Text("Spending Graph")
@@ -344,20 +334,17 @@ struct Dashboard4View: View {
             .padding()
         }
     }
-    
-    /// Filter transactions for tabs: Expenditures (0), Incomes (1) or All (2).
+
     var filteredTransactions: [Transaction] {
         switch selectedTab {
         case 0:
-            return transactions.filter { $0.type == .expenditure }
+            return transactions.filter { $0.type == .expenditure && (affectsSaving || $0.note != "Affects Savings") }
         case 1:
             return transactions.filter { $0.type == .income }
         default:
             return transactions
         }
     }
-    
-    // MARK: - Helper Functions
     
     private func deleteTransaction(at index: Int) {
         let transaction = transactions[index]
@@ -369,6 +356,7 @@ struct Dashboard4View: View {
         transactions.remove(at: index)
     }
 }
+// Other code (CSV persistence, SpendingChartView, LogTransactionView, etc.) remains the same...
 
 // MARK: - CSV Persistence (Save & Load)
 // In addition to transactions and balance breakdown, we now persist the daily saving limit.
@@ -651,6 +639,7 @@ struct LogTransactionView: View {
     @Binding var transactionMethod: Dashboard4View.PaymentMethod
     @Binding var balanceBreakdown: [String: Double]
     @Binding var transactions: [Dashboard4View.Transaction]
+    @Binding var affectsSaving: Bool
     
     @State private var note: String = ""
     @State private var showAlert = false
@@ -680,31 +669,11 @@ struct LogTransactionView: View {
                 .background(Color.white.opacity(0.2))
                 .cornerRadius(12)
                 
-                if let amount = Double(transactionAmount), amount > 20 {
-                    VStack(alignment: .leading) {
-                        Text("Note required for amounts > 20:")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.9))
-                        TextField("Enter note", text: $note)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .padding(5)
-                            .background(Color.white.opacity(0.2))
-                            .cornerRadius(8)
-                    }
-                    .padding(.horizontal)
-                } else {
-                    VStack(alignment: .leading) {
-                        Text("Note (optional):")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.9))
-                        TextField("Enter note", text: $note)
-                            .textFieldStyle(RoundedBorderTextFieldStyle())
-                            .padding(5)
-                            .background(Color.white.opacity(0.2))
-                            .cornerRadius(8)
-                    }
-                    .padding(.horizontal)
+                Toggle(isOn: $affectsSaving) {
+                    Text("Affects Savings")
                 }
+                .padding()
+                .foregroundColor(.white)
                 
                 Button {
                     validateAndSaveTransaction()
@@ -741,7 +710,7 @@ struct LogTransactionView: View {
             amount: amount,
             method: transactionMethod,
             date: Date(),
-            note: note
+            note: affectsSaving ? "Affects Savings" : note
         )
         if transactionType == .income {
             balanceBreakdown[transactionMethod.rawValue, default: 0] += amount
