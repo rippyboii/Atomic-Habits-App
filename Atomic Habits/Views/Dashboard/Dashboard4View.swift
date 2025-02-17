@@ -6,10 +6,6 @@
 import SwiftUI
 import Charts
 
-// Dashboard4View.swift
-import SwiftUI
-import Charts
-
 struct Dashboard4View: View {
     // MARK: - Injected Properties
     let profile: Profile
