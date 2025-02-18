@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - Data Model
+// Define the QuickNote struct
 struct QuickNote: Identifiable, Codable, Equatable {
     let id = UUID()
     var title: String
@@ -9,6 +9,7 @@ struct QuickNote: Identifiable, Codable, Equatable {
     var hasDeadline: Bool
 }
 
+// Define the AtomicStreak struct
 struct AtomicStreak: Identifiable {
     let id = UUID()
     let name: String
@@ -29,8 +30,13 @@ struct DashboardView: View {
     @State private var quickNotes: [QuickNote] = []  // Changed to a struct for note details
     @State private var showingAddNote = false
     @State private var newNote = QuickNote(title: "", detail: "", deadline: Date(), hasDeadline: false)
+    
+    // For the edit and delete actions
+    @State private var showingDeleteConfirmation = false
+    @State private var noteToDelete: QuickNote?
 
-    // MARK: - Body
+    @State private var noteToEdit: QuickNote?
+    
     var body: some View {
         ZStack {
             (colorScheme == .dark ? Color.black : Color.white)
@@ -48,6 +54,23 @@ struct DashboardView: View {
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
             }
+            
+            // Floating Add Note Button
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    Button(action: { showingAddNote = true }) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title)
+                            .foregroundColor(.white)
+                            .frame(width: 60, height: 60)
+                            .background(Circle().fill(Color.blue))
+                            .shadow(radius: 10)
+                    }
+                    .padding()
+                }
+            }
         }
         .navigationBarHidden(true)
         .onAppear { loadQuickNotes() }
@@ -55,50 +78,32 @@ struct DashboardView: View {
             saveQuickNotes()
         }
         .sheet(isPresented: $showingAddNote) {
-            VStack {
-                Text("Add New Note")
-                    .font(.title)
-                    .padding()
-                
-                TextField("Title", text: $newNote.title)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding()
-                
-                TextField("Detail", text: $newNote.detail)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .padding()
-                
-                Toggle("Has Deadline", isOn: $newNote.hasDeadline)
-                    .padding()
-                
-                if newNote.hasDeadline {
-                    DatePicker("Deadline", selection: $newNote.deadline, displayedComponents: .date)
-                        .padding()
-                }
-                
-                Button("Save") {
-                    quickNotes.append(newNote)
-                    newNote = QuickNote(title: "", detail: "", deadline: Date(), hasDeadline: false)
-                    showingAddNote = false
-                }
-                .padding()
-                .background(Color.blue)
-                .foregroundColor(.white)
-                .cornerRadius(10)
-            }
-            .padding()
+            AddNoteView(note: $newNote, onSave: {
+                quickNotes.append(newNote)
+                newNote = QuickNote(title: "", detail: "", deadline: Date(), hasDeadline: false)
+                showingAddNote = false
+            })
+        }
+        .alert(isPresented: $showingDeleteConfirmation) {
+            Alert(
+                title: Text("Are you sure?"),
+                message: Text("This action will delete the note permanently."),
+                primaryButton: .destructive(Text("Delete")) {
+                    if let note = noteToDelete {
+                        quickNotes.removeAll { $0.id == note.id }
+                    }
+                },
+                secondaryButton: .cancel()
+            )
         }
     }
     
-    // MARK: - Header Section
     private var headerView: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 20)
-                .fill(
-                    LinearGradient(gradient: Gradient(colors: [.blue, .purple]),
+                .fill(LinearGradient(gradient: Gradient(colors: [.blue, .purple]),
                                    startPoint: .topLeading,
-                                   endPoint: .bottomTrailing)
-                )
+                                   endPoint: .bottomTrailing))
                 .matchedGeometryEffect(id: profile.id, in: animationNamespace)
             
             VStack {
@@ -116,7 +121,6 @@ struct DashboardView: View {
         .shadow(radius: 10)
     }
 
-    // MARK: - Streak Section
     private var streakView: some View {
         VStack(alignment: .leading, spacing: 15) {
             Text("Your Streaks")
@@ -125,7 +129,7 @@ struct DashboardView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 20) {
                     ForEach(streaks) { streak in
-                        Text(streak.name) // You can replace this with your custom view for streaks
+                        Text(streak.name)
                     }
                     addStreakButton
                 }
@@ -148,7 +152,6 @@ struct DashboardView: View {
         }
     }
 
-    // MARK: - Tab Section
     private var tabView: some View {
         HStack {
             tabButton(title: "Quick Notes", tag: 0)
@@ -175,8 +178,7 @@ struct DashboardView: View {
         }
         .foregroundColor(selectedTab == tag ? .white : .primary)
     }
-    
-    // MARK: - Content Section
+
     private var contentView: some View {
         VStack {
             switch selectedTab {
@@ -194,7 +196,6 @@ struct DashboardView: View {
         )
     }
     
-    // MARK: - Quick Notes Content
     private var quickNotesContent: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Quick Notes")
@@ -203,6 +204,14 @@ struct DashboardView: View {
             
             ForEach(quickNotes) { note in
                 quickNoteRow(note: note)
+                    .onLongPressGesture {
+                        noteToDelete = note
+                        showingDeleteConfirmation = true
+                    }
+                    .onTapGesture {
+                        noteToEdit = note
+                        showingAddNote = true
+                    }
             }
         }
         .padding(15)
@@ -238,16 +247,11 @@ struct DashboardView: View {
         let daysDifference = calendar.dateComponents([.day], from: today, to: date).day ?? 0
         
         let dateFormatter = DateFormatter()
-        dateFormatter.dateFormat = "d MMMM"  // This will format it like "20 February"
+        dateFormatter.dateFormat = "d MMMM"
         
-        // Get the day of the week for the deadline date
         let weekdayFormatter = DateFormatter()
-        weekdayFormatter.dateFormat = "EEEE"  // Gets full day name like "Friday"
+        weekdayFormatter.dateFormat = "EEEE"
         let weekdayName = weekdayFormatter.string(from: date)
-        
-        // Adding the day suffix (e.g., 20th, 21st, etc.)
-        let day = calendar.component(.day, from: date)
-        
         
         let formattedDate = dateFormatter.string(from: date)
         if daysDifference < 7 {
@@ -257,7 +261,6 @@ struct DashboardView: View {
         }
     }
 
-    // MARK: - Action Buttons
     private func actionButtons() -> some View {
         HStack(spacing: 20) {
             Button(action: { showingAddNote = true }) {
@@ -281,9 +284,7 @@ struct DashboardView: View {
         }
     }
 
-    // MARK: - Save & Load Data
     private func saveQuickNotes() {
-        // Get the documents directory for the current profile
         guard let docsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         let profileFolderURL = docsURL.appendingPathComponent(profile.id)
         let fileURL = profileFolderURL.appendingPathComponent("quickNotes.json")
@@ -298,7 +299,6 @@ struct DashboardView: View {
     }
     
     private func loadQuickNotes() {
-        // Get the documents directory for the current profile
         guard let docsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         let profileFolderURL = docsURL.appendingPathComponent(profile.id)
         let fileURL = profileFolderURL.appendingPathComponent("quickNotes.json")
@@ -311,5 +311,43 @@ struct DashboardView: View {
         } catch {
             print("Error loading quick notes: \(error)")
         }
+    }
+}
+
+struct AddNoteView: View {
+    @Binding var note: QuickNote
+    var onSave: () -> Void
+    
+    var body: some View {
+        VStack {
+            Text("Edit Note")
+                .font(.title)
+                .padding()
+            
+            TextField("Title", text: $note.title)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .padding()
+            
+            TextField("Detail", text: $note.detail)
+                .textFieldStyle(RoundedBorderTextFieldStyle())
+                .padding()
+            
+            Toggle("Has Deadline", isOn: $note.hasDeadline)
+                .padding()
+            
+            if note.hasDeadline {
+                DatePicker("Deadline", selection: $note.deadline, displayedComponents: .date)
+                    .padding()
+            }
+            
+            Button("Save") {
+                onSave()
+            }
+            .padding()
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .cornerRadius(10)
+        }
+        .padding()
     }
 }
