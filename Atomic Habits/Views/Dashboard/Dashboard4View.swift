@@ -648,12 +648,14 @@ struct LogTransactionView: View {
                 Text(transactionType == .income ? "Log Income" : "Log Expenditure")
                     .font(.largeTitle)
                     .foregroundColor(.white)
+                
                 TextField("Amount (¥)", text: $transactionAmount)
                     .keyboardType(.decimalPad)
                     .textFieldStyle(RoundedBorderTextFieldStyle())
                     .padding()
                     .background(Color.white.opacity(0.2))
                     .cornerRadius(12)
+                
                 Picker("Payment Method", selection: $transactionMethod) {
                     ForEach(Dashboard4View.PaymentMethod.allCases, id: \.self) { method in
                         Text(method.rawValue)
@@ -670,6 +672,16 @@ struct LogTransactionView: View {
                 }
                 .padding()
                 .foregroundColor(.white)
+                
+                Divider() // Divider added below "Affects Saving"
+                
+                // Logic to show note input only for transactions above 20
+                if let amount = Double(transactionAmount), amount > 20 {
+                    TextField("Enter the precise explanation for this transaction!", text: $note)
+                        .padding()
+                        .background(Color.white.opacity(0.2))
+                        .cornerRadius(12)
+                }
                 
                 Button {
                     validateAndSaveTransaction()
