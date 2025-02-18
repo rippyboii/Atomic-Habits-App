@@ -1,6 +1,14 @@
 import SwiftUI
 
 // MARK: - Data Model
+struct QuickNote: Identifiable, Codable, Equatable {
+    let id = UUID()
+    var title: String
+    var detail: String
+    var deadline: Date
+    var hasDeadline: Bool
+}
+
 struct AtomicStreak: Identifiable {
     let id = UUID()
     let name: String
@@ -10,10 +18,6 @@ struct AtomicStreak: Identifiable {
     var isGlowing: Bool = false
 }
 
-// To reuse Dashboard4View's Transaction type.
-typealias Transaction = Dashboard4View.Transaction
-
-// MARK: - Main View
 struct DashboardView: View {
     let profile: Profile
     let animationNamespace: Namespace.ID
@@ -22,9 +26,7 @@ struct DashboardView: View {
     @State private var streaks: [AtomicStreak] = []
     @State private var showingAddStreak = false
 
-    // MARK: - Shared Data (Simulated from Dashboard4View)
     @State private var quickNotes: [QuickNote] = []  // Changed to a struct for note details
-
     @State private var showingAddNote = false
     @State private var newNote = QuickNote(title: "", detail: "", deadline: Date(), hasDeadline: false)
 
@@ -41,13 +43,17 @@ struct DashboardView: View {
                     streakView
                     tabView
                     contentView
-                    actionButtons()  // Corrected here
+                    actionButtons()
                 }
                 .padding(.horizontal, 20)
                 .padding(.vertical, 20)
             }
         }
         .navigationBarHidden(true)
+        .onAppear { loadQuickNotes() }
+        .onChange(of: quickNotes) { _ in
+            saveQuickNotes()
+        }
         .sheet(isPresented: $showingAddNote) {
             VStack {
                 Text("Add New Note")
@@ -110,7 +116,7 @@ struct DashboardView: View {
         .shadow(radius: 10)
     }
 
-    // MARK: - Streaks Section
+    // MARK: - Streak Section
     private var streakView: some View {
         VStack(alignment: .leading, spacing: 15) {
             Text("Your Streaks")
@@ -119,9 +125,7 @@ struct DashboardView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 20) {
                     ForEach(streaks) { streak in
-                        StreakButton(streak: streak) {
-                            pressStreak(streak)
-                        }
+                        Text(streak.name) // You can replace this with your custom view for streaks
                     }
                     addStreakButton
                 }
@@ -130,7 +134,7 @@ struct DashboardView: View {
         }
         .frame(height: 120)
     }
-    
+
     private var addStreakButton: some View {
         Button(action: { showingAddStreak = true }) {
             ZStack {
@@ -143,7 +147,7 @@ struct DashboardView: View {
             }
         }
     }
-    
+
     // MARK: - Tab Section
     private var tabView: some View {
         HStack {
@@ -151,11 +155,11 @@ struct DashboardView: View {
             tabButton(title: "Activity", tag: 1)
             tabButton(title: "Settings", tag: 2)
         }
-        .font(.subheadline)  // Adjust font size here
+        .font(.subheadline)
         .background(Capsule().fill(Color.gray.opacity(0.2)))
         .padding(.horizontal)
     }
-    
+
     private func tabButton(title: String, tag: Int) -> some View {
         Button(action: {
             withAnimation {
@@ -177,10 +181,9 @@ struct DashboardView: View {
         VStack {
             switch selectedTab {
             case 0: quickNotesContent
-            case 1: activityContent
-            case 2: settingsContent
-            default: Text("Dashboard content here...")
-                        .foregroundColor(.gray)
+            case 1: Text("Activity content here...").foregroundColor(.gray)
+            case 2: Text("Settings content here...").foregroundColor(.gray)
+            default: Text("Dashboard content here...").foregroundColor(.gray)
             }
         }
         .frame(maxWidth: .infinity)
@@ -191,14 +194,13 @@ struct DashboardView: View {
         )
     }
     
-    // MARK: - Tab Contents
+    // MARK: - Quick Notes Content
     private var quickNotesContent: some View {
         VStack(alignment: .leading, spacing: 20) {
             Text("Quick Notes")
                 .font(.headline)
                 .padding(.bottom, 5)
             
-            // Split the ForEach into a function to reduce complexity
             ForEach(quickNotes) { note in
                 quickNoteRow(note: note)
             }
@@ -217,53 +219,45 @@ struct DashboardView: View {
                     .padding(.top, 5)
                 
                 if note.hasDeadline {
-                    Text("Deadline: \(formattedDate(note.deadline))")
+                    Text(formattedDeadline(date: note.deadline))
                         .font(.subheadline)
                         .foregroundColor(.gray)
                 }
             }
             
             Spacer()
-            
-            if selectedTab == 1 {  // If in edit mode
-                Button(action: {
-                    removeNote(note)
-                }) {
-                    Image(systemName: "minus.circle.fill")
-                        .foregroundColor(.red)
-                        .font(.title)
-                }
-            }
         }
         .padding()
         .background(RoundedRectangle(cornerRadius: 10).fill(Color.blue.opacity(0.1)))
         .padding(.bottom, 5)
     }
 
-    private func formattedDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .none
-        return formatter.string(from: date)
-    }
-    
-    private func removeNote(_ note: QuickNote) {
-        if let index = quickNotes.firstIndex(where: { $0.id == note.id }) {
-            quickNotes.remove(at: index)
+    private func formattedDeadline(date: Date) -> String {
+        let calendar = Calendar.current
+        let today = Date()
+        let daysDifference = calendar.dateComponents([.day], from: today, to: date).day ?? 0
+        
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "d MMMM"  // This will format it like "20 February"
+        
+        // Get the day of the week for the deadline date
+        let weekdayFormatter = DateFormatter()
+        weekdayFormatter.dateFormat = "EEEE"  // Gets full day name like "Friday"
+        let weekdayName = weekdayFormatter.string(from: date)
+        
+        // Adding the day suffix (e.g., 20th, 21st, etc.)
+        let day = calendar.component(.day, from: date)
+        
+        
+        let formattedDate = dateFormatter.string(from: date)
+        if daysDifference < 7 {
+            return "This \(weekdayName), \(formattedDate)"
+        } else {
+            return "\(formattedDate), \(weekdayName)"
         }
     }
-    
-    private var activityContent: some View {
-        Text("Activity content here...")
-            .foregroundColor(.gray)
-    }
-    
-    private var settingsContent: some View {
-        Text("Settings content here...")
-            .foregroundColor(.gray)
-    }
-    
-    // MARK: - Helper Views
+
+    // MARK: - Action Buttons
     private func actionButtons() -> some View {
         HStack(spacing: 20) {
             Button(action: { showingAddNote = true }) {
@@ -284,50 +278,38 @@ struct DashboardView: View {
                         )
                 )
             }
+        }
+    }
 
-            Button(action: {}) {
-                VStack {
-                    Image(systemName: "pencil.circle.fill")
-                        .font(.title2)
-                    Text("Edit")
-                        .font(.caption)
-                }
-                .foregroundColor(.white)
-                .frame(width: 80, height: 80)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(
-                            LinearGradient(gradient: Gradient(colors: [.blue, .purple]),
-                                           startPoint: .topLeading,
-                                           endPoint: .bottomTrailing)
-                        )
-                )
-            }
+    // MARK: - Save & Load Data
+    private func saveQuickNotes() {
+        // Get the documents directory for the current profile
+        guard let docsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let profileFolderURL = docsURL.appendingPathComponent(profile.id)
+        let fileURL = profileFolderURL.appendingPathComponent("quickNotes.json")
+        
+        do {
+            let data = try JSONEncoder().encode(quickNotes)
+            try data.write(to: fileURL)
+            print("Quick notes saved to \(fileURL.path)")
+        } catch {
+            print("Error saving quick notes: \(error)")
         }
     }
     
-    // MARK: - Streak Logic
-    private func pressStreak(_ streak: AtomicStreak) {
-        if let index = streaks.firstIndex(where: { $0.id == streak.id }) {
-            streaks[index].lastPressed = Date()
-            streaks[index].count += 1
-            // Trigger glow animation
-            DispatchQueue.main.async {
-                streaks[index].isGlowing = true
-            }
-            // Auto-disable glow after 24 hours
-            DispatchQueue.main.asyncAfter(deadline: .now() + 86400) {
-                streaks[index].isGlowing = false
-            }
+    private func loadQuickNotes() {
+        // Get the documents directory for the current profile
+        guard let docsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let profileFolderURL = docsURL.appendingPathComponent(profile.id)
+        let fileURL = profileFolderURL.appendingPathComponent("quickNotes.json")
+        
+        do {
+            let data = try Data(contentsOf: fileURL)
+            let loadedNotes = try JSONDecoder().decode([QuickNote].self, from: data)
+            quickNotes = loadedNotes
+            print("Quick notes loaded from \(fileURL.path)")
+        } catch {
+            print("Error loading quick notes: \(error)")
         }
     }
-}
-
-// QuickNote structure
-struct QuickNote: Identifiable {
-    let id = UUID()
-    var title: String
-    var detail: String
-    var deadline: Date
-    var hasDeadline: Bool
 }
