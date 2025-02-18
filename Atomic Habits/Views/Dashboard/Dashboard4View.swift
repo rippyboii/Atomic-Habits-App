@@ -369,10 +369,21 @@ extension Dashboard4View {
         let fileURL = folder.appendingPathComponent("transactions.csv")
         var csv = "id,type,amount,method,date,note\n"
         let dateFormatter = ISO8601DateFormatter()
+        
         for t in transactions {
-            let note = t.note.replacingOccurrences(of: ",", with: " ")
+            let note: String
+            // If a note is entered, use that, otherwise use "Affects Saving" if affectsSaving is true
+            if !t.note.isEmpty {
+                note = t.note.replacingOccurrences(of: ",", with: " ")
+            } else if affectsSaving {
+                note = "Affects Saving"
+            } else {
+                note = ""
+            }
+            
             csv += "\(t.id.uuidString),\(t.type.rawValue),\(String(format: "%.2f", t.amount)),\(t.method.rawValue),\(dateFormatter.string(from: t.date)),\(note)\n"
         }
+        
         do {
             try csv.write(to: fileURL, atomically: true, encoding: .utf8)
             print("Saved transactions to \(fileURL.path)")
@@ -675,13 +686,11 @@ struct LogTransactionView: View {
                 
                 Divider() // Divider added below "Affects Saving"
                 
-                // Logic to show note input only for transactions above 20
-                if let amount = Double(transactionAmount), amount > 20 {
-                    TextField("Enter the precise explanation for this transaction!", text: $note)
-                        .padding()
-                        .background(Color.white.opacity(0.2))
-                        .cornerRadius(12)
-                }
+                // Always show the note field
+                TextField("Enter a note (Optional, but required for amounts over 20)", text: $note)
+                    .padding()
+                    .background(Color.white.opacity(0.2))
+                    .cornerRadius(12)
                 
                 Button {
                     validateAndSaveTransaction()
@@ -708,11 +717,13 @@ struct LogTransactionView: View {
             showAlert = true
             return
         }
+        
         if amount > 20 && note.trimmingCharacters(in: .whitespaces).isEmpty {
             alertMessage = "A note is required for amounts over 20."
             showAlert = true
             return
         }
+
         let newTransaction = Dashboard4View.Transaction(
             type: transactionType,
             amount: amount,
@@ -720,6 +731,7 @@ struct LogTransactionView: View {
             date: Date(),
             note: affectsSaving ? "Affects Savings" : note
         )
+        
         if transactionType == .income {
             balanceBreakdown[transactionMethod.rawValue, default: 0] += amount
         } else {
@@ -730,7 +742,6 @@ struct LogTransactionView: View {
         note = ""
     }
 }
-
 struct EditTransactionView: View {
     @Binding var balanceBreakdown: [String: Double]
     @Binding var transactions: [Dashboard4View.Transaction]
