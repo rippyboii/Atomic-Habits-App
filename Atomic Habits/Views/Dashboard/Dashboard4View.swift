@@ -678,15 +678,17 @@ struct LogTransactionView: View {
                 .background(Color.white.opacity(0.2))
                 .cornerRadius(12)
                 
-                Toggle(isOn: $affectsSaving) {
-                    Text("Affects Savings")
+                // Show Toggle only for expenditure
+                if transactionType == .expenditure {
+                    Toggle(isOn: $affectsSaving) {
+                        Text("Affects Savings")
+                    }
+                    .padding()
+                    .foregroundColor(.white)
+                    
+                    Divider()
                 }
-                .padding()
-                .foregroundColor(.white)
                 
-                Divider() // Divider added below "Affects Saving"
-                
-                // Always show the note field
                 TextField("Enter a note (Optional, but required for amounts over 20)", text: $note)
                     .padding()
                     .background(Color.white.opacity(0.2))
@@ -710,7 +712,8 @@ struct LogTransactionView: View {
             }
         }
     }
-    
+
+    // MARK: - Updated validateAndSaveTransaction Method
     private func validateAndSaveTransaction() {
         guard let amount = Double(transactionAmount), amount > 0 else {
             alertMessage = "Enter a valid amount."
@@ -729,7 +732,7 @@ struct LogTransactionView: View {
             amount: amount,
             method: transactionMethod,
             date: Date(),
-            note: affectsSaving ? "Affects Savings" : note
+            note: note // Always use user's note input
         )
         
         if transactionType == .income {
