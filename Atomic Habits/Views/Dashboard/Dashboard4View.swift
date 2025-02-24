@@ -39,6 +39,8 @@ struct Dashboard4View: View {
     @State private var isEditingDailyLimit: Bool = false
     
     @State private var affectsSaving: Bool = true // Added affectsSaving state
+    
+    @State private var showResetDialog = false // Added for reset dialog
 
     // MARK: - Data Model
 
@@ -275,8 +277,38 @@ struct Dashboard4View: View {
                     .padding(.vertical, 5)
                 }
             }
+            
+            // Reset Button
+            // Replace the existing Reset Button in savingsTabView
+            Button(action: { showResetDialog.toggle() }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 15))
+                    Text("Reset Savings")
+                        .font(.subheadline)
+                }
+                .foregroundColor(.red)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.red.opacity(0.15))
+                )
+            }
         }
         .padding(.top, 10)
+        // Replace the .alert modifier in savingsTabView with:
+        .confirmationDialog("", isPresented: $showResetDialog) {
+            Button("Reset Today's Saving", role: .destructive) {
+                resetTodaysSaving()
+            }
+            Button("Reset Overall Saving", role: .destructive) {
+                resetOverallSaving()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Select savings to reset:")
+        }
     }
 
     private var spendingGraph: some View {
@@ -351,7 +383,24 @@ struct Dashboard4View: View {
         }
         transactions.remove(at: index)
     }
+    
+    // MARK: - Reset Functions
+
+    private func resetTodaysSaving() {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        transactions.removeAll { calendar.isDate($0.date, inSameDayAs: today) }
+        saveDashboardData()
+    }
+
+    // Update the resetOverallSaving function
+    private func resetOverallSaving() {
+        transactions.removeAll { $0.type == .expenditure && $0.note == "Affects Saving" }
+        saveDashboardData()
+    }
 }
+
+// Rest of your code remains the same...
 // Other code (CSV persistence, SpendingChartView, LogTransactionView, etc.) remains the same...
 
 // MARK: - CSV Persistence (Save & Load)
