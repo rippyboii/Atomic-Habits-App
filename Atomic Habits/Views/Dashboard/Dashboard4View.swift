@@ -279,7 +279,6 @@ struct Dashboard4View: View {
             }
             
             // Reset Button
-            // Replace the existing Reset Button in savingsTabView
             Button(action: { showResetDialog.toggle() }) {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.clockwise")
@@ -300,10 +299,10 @@ struct Dashboard4View: View {
         // Replace the .alert modifier in savingsTabView with:
         .confirmationDialog("", isPresented: $showResetDialog) {
             Button("Reset Today's Saving", role: .destructive) {
-                resetTodaysSaving()
+                //hehe
             }
             Button("Reset Overall Saving", role: .destructive) {
-                resetOverallSaving()
+                //hehe
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -394,10 +393,7 @@ struct Dashboard4View: View {
     }
 
     // Update the resetOverallSaving function
-    private func resetOverallSaving() {
-        transactions.removeAll { $0.type == .expenditure && $0.note == "Affects Saving" }
-        saveDashboardData()
-    }
+    
 }
 
 // Rest of your code remains the same...
